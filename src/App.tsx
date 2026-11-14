@@ -197,8 +197,8 @@ export default function App() {
               customConfigured: true
             },
             support: {
-              whatsapp: 'https://wa.me/910000000000',
-              telegram: 'https://t.me/sketelarena',
+              discord: 'https://discord.com',
+              telegram: '',
               email: 'support@sketelarena.com'
             }
           });
@@ -510,7 +510,7 @@ export default function App() {
 
   // Pages that display header/nav
   const showChrome = isLoggedIn && !['/login', '/signup'].includes(location.pathname);
-  const showHeader = showChrome && !['/home', '/tournaments', '/match/', '/match-details/', '/wallet/add', '/wallet/withdraw', '/admin', '/referral', '/profile/details', '/profile/stats', '/game-modes', '/profile'].some(p => location.pathname.startsWith(p));
+  const showHeader = showChrome && !['/home', '/tournaments', '/match/', '/match-details/', '/wallet/add', '/wallet/withdraw', '/admin', '/referral', '/profile/details', '/profile/stats', '/game-modes', '/profile', '/leaderboard'].some(p => location.pathname.startsWith(p));
   const showNav = showChrome && !['/match/', '/match-details/', '/admin/match/'].some(p => location.pathname.startsWith(p));
 
   return (

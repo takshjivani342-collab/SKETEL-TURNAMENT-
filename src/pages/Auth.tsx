@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, Phone, User as UserIcon, Ticket, ArrowRight, Gamepad2, Chrome, AlertCircle, CheckCircle2 } from 'lucide-react';
 import SafeImage from '../components/SafeImage';
 import { auth, db } from '../lib/firebase';
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -197,16 +199,63 @@ export default function Auth({ onLogin }: AuthProps) {
     }
   };
 
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          onLogin();
+        }
+      })
+      .catch((error: any) => {
+        console.error('Google redirect login failed:', error);
+        const code = error?.code || '';
+        if (code === 'auth/unauthorized-domain') {
+          setErrors({
+            general: `Domain "${window.location.hostname}" is not authorized in Firebase Auth. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
+          });
+        } else if (code) {
+          setErrors({ general: `Google login failed (${code}).` });
+        }
+      });
+  }, [onLogin]);
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     setErrors({});
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
       onLogin();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
-      setErrors({ general: 'Google login failed.' });
+      const code = error?.code || '';
+      const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+
+      if (code === 'auth/popup-blocked' && !isInIframe) {
+        try {
+          const provider = new GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectError: any) {
+          console.error('Redirect login failed:', redirectError);
+        }
+      }
+
+      if (code === 'auth/unauthorized-domain') {
+        setErrors({
+          general: `Domain "${window.location.hostname}" is not authorized in Firebase Auth. Add it in Firebase Console → Authentication → Settings → Authorized domains.`
+        });
+      } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        setErrors({ general: 'Google sign-in popup was closed. Please try again.' });
+      } else if (code === 'auth/popup-blocked') {
+        setErrors({ general: 'Popup blocked by browser. Please allow popups and try again.' });
+      } else if (code === 'auth/operation-not-allowed') {
+        setErrors({ general: 'Google Sign-In is disabled in Firebase Console → Authentication → Sign-in method.' });
+      } else {
+        setErrors({ general: `Google login failed${code ? ` (${code})` : '.'}` });
+      }
     } finally {
       setLoading(false);
     }

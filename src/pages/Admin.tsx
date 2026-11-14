@@ -1912,21 +1912,35 @@ export default function AdminPage({ onPageChange }: AdminPageProps) {
                 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-neutral-600 ml-1">WhatsApp link</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500 ml-1">Discord Server / Invite Link</label>
                     <input 
                       type="text"
-                      placeholder="https://wa.me/..."
-                      value={appSettings?.support?.whatsapp || ''}
+                      placeholder="https://discord.gg/your-server"
+                      value={appSettings?.support?.discord || ''}
                       onChange={(e) => setAppSettings({
                         ...appSettings,
-                        support: { ...appSettings?.support, whatsapp: e.target.value }
+                        support: { ...appSettings?.support, discord: e.target.value }
                       })}
                       className="w-full bg-black border border-neutral-800 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-purple-500"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-neutral-600 ml-1">Telegram link</label>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500 ml-1">Support Email</label>
+                    <input 
+                      type="email"
+                      placeholder="support@sketelarena.com"
+                      value={appSettings?.support?.email || ''}
+                      onChange={(e) => setAppSettings({
+                        ...appSettings,
+                        support: { ...appSettings?.support, email: e.target.value }
+                      })}
+                      className="w-full bg-black border border-neutral-800 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-purple-500"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500 ml-1">Telegram Link (Optional)</label>
                     <input 
                       type="text"
                       placeholder="https://t.me/..."
@@ -1934,20 +1948,6 @@ export default function AdminPage({ onPageChange }: AdminPageProps) {
                       onChange={(e) => setAppSettings({
                         ...appSettings,
                         support: { ...appSettings?.support, telegram: e.target.value }
-                      })}
-                      className="w-full bg-black border border-neutral-800 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-purple-500"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-neutral-600 ml-1">support email</label>
-                    <input 
-                      type="email"
-                      placeholder="support@example.com"
-                      value={appSettings?.support?.email || ''}
-                      onChange={(e) => setAppSettings({
-                        ...appSettings,
-                        support: { ...appSettings?.support, email: e.target.value }
                       })}
                       className="w-full bg-black border border-neutral-800 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-purple-500"
                     />

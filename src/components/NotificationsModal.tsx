@@ -34,12 +34,20 @@ export default function NotificationsModal({
   );
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [inAppEnabled, setInAppEnabled] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && localStorage.getItem('sketelarena_push_notifications') === 'true';
+  });
+  const [enableMessage, setEnableMessage] = useState<string>('');
 
   useModalBackHandler(isOpen, onClose);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setPermissionStatus(Notification.permission);
+    }
+    if (typeof window !== 'undefined') {
+      setInAppEnabled(localStorage.getItem('sketelarena_push_notifications') === 'true');
+      setEnableMessage('');
     }
   }, [isOpen]);
 
@@ -85,6 +93,12 @@ export default function NotificationsModal({
     try {
       const perm = await requestMobileNotificationPermission(user?.id);
       setPermissionStatus(perm);
+      setInAppEnabled(true);
+      if (perm !== 'granted') {
+        setEnableMessage('In-app alerts ON! Browser blocked popup — allow notifications in site settings for phone bar.');
+      } else {
+        setEnableMessage('');
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -96,7 +110,7 @@ export default function NotificationsModal({
     await triggerMobileStatusBarNotification(
       '🔥 Free Fire Match Alert!',
       'Room ID: 893412 • Pass: 1234 | Match starts in 10 minutes!',
-      { tag: 'test-mobile-bar-alert' }
+      { tag: 'test-mobile-bar-alert', force: true }
     );
     setTestSent(true);
     setTimeout(() => setTestSent(false), 3000);
@@ -194,8 +208,8 @@ export default function NotificationsModal({
     },
     {
       id: 'default_3',
-      title: 'Refer & Earn ₹50 Bonus Cash',
-      message: 'Invite your Free Fire squad to Sketel Arena and earn instant cash rewards on every deposit.',
+      title: 'Refer & Earn ₹5 Cash',
+      message: 'Invite your Free Fire squad to Sketel Arena and earn instant ₹5 cash rewards when they join.',
       type: 'offer' as const,
       audience: 'all' as const,
       actionPage: Page.REFERRAL,
@@ -256,20 +270,22 @@ export default function NotificationsModal({
               </button>
             </div>
 
-            {/* Mobile Status Bar Notification Card */}
-            <div className="mt-3 p-3 bg-gradient-to-r from-purple-950/40 to-blue-950/40 border border-purple-500/30 rounded-2xl flex items-center justify-between gap-2.5">
+            {/* Mobile Status Bar Notification Card (Sketel Arena Cyan/Emerald Theme) */}
+            <div className="mt-3 p-3 bg-gradient-to-r from-blue-950/80 via-[#0b1f3d] to-cyan-950/70 border border-cyan-500/40 rounded-2xl flex items-center justify-between gap-2.5">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-400/35 flex items-center justify-center text-cyan-300 shrink-0">
                   <Smartphone size={16} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">
                     Mobile Notification Bar
                   </p>
-                  <p className="text-[9px] text-neutral-400 truncate">
-                    {permissionStatus === 'granted' 
-                      ? 'Active • Alerts appear in phone status bar' 
-                      : 'Disabled • Tap to enable status bar alerts'}
+                  <p className="text-[9px] text-slate-300 truncate">
+                    {permissionStatus === 'granted'
+                      ? 'Active • Alerts appear in phone status bar'
+                      : inAppEnabled
+                        ? 'In-App Alerts Active • Allow in browser settings for phone bar'
+                        : 'Disabled • Tap to enable status bar alerts'}
                   </p>
                 </div>
               </div>
@@ -278,22 +294,32 @@ export default function NotificationsModal({
                 <button
                   type="button"
                   onClick={handleSendTestNotification}
-                  className="px-2.5 py-1.5 bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-600/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1"
+                  className="px-2.5 py-1.5 bg-emerald-500/20 border border-emerald-400/45 text-emerald-300 hover:bg-emerald-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1"
                 >
                   <CheckCircle2 size={11} />
                   <span>{testSent ? 'Sent!' : 'Test'}</span>
                 </button>
+              ) : inAppEnabled ? (
+                <span className="px-2.5 py-1.5 bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1">
+                  <CheckCircle2 size={11} />
+                  <span>Active</span>
+                </span>
               ) : (
                 <button
                   type="button"
                   onClick={handleEnableMobileNotifications}
                   disabled={isRequestingPermission}
-                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all shrink-0 active:scale-95"
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all shrink-0 active:scale-95"
                 >
                   {isRequestingPermission ? '...' : 'Enable'}
                 </button>
               )}
             </div>
+            {enableMessage && (
+              <p className="mt-1.5 px-1 text-[10px] text-cyan-300 font-semibold leading-snug">
+                {enableMessage}
+              </p>
+            )}
 
             {/* Notifications List */}
             <div className="mt-3 space-y-2.5 overflow-y-auto no-scrollbar pr-0.5 relative z-10 flex-1">

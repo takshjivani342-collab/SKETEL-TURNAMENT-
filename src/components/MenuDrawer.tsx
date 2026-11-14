@@ -109,12 +109,23 @@ export default function MenuDrawer({
     {
       id: 'stats',
       label: 'My Career & Stats',
-      desc: 'Track kills, wins and matches history',
+      desc: 'Track wins, earnings and matches history',
       icon: BarChart3,
       color: 'bg-purple-600/20 text-purple-400 border-purple-500/30',
       action: () => {
         onClose();
         onPageChange(Page.GAME_STATS);
+      }
+    },
+    {
+      id: 'leaderboard',
+      label: 'Leaderboard',
+      desc: 'Weekly & monthly top earning players',
+      icon: Trophy,
+      color: 'bg-amber-600/20 text-amber-400 border-amber-500/30',
+      action: () => {
+        onClose();
+        onPageChange(Page.LEADERBOARD);
       }
     },
     {
@@ -142,7 +153,7 @@ export default function MenuDrawer({
     {
       id: 'support',
       label: 'Customer Support',
-      desc: '24/7 WhatsApp & Telegram assistance',
+      desc: '24/7 Discord & Email assistance',
       icon: HelpCircle,
       color: 'bg-teal-600/20 text-teal-400 border-teal-500/30',
       action: () => {

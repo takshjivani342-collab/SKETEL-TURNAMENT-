@@ -28,26 +28,12 @@ export default function Leaderboard() {
     return () => unsub();
   }, []);
 
-  // Real-time listener for period winnings
+  // Real-time listener for period winnings (single-field query avoids composite index requirement)
   useEffect(() => {
     setLoading(true);
-    const now = new Date();
-    let startDate: Date;
-    
-    if (activeTab === 'weekly') {
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      startDate = new Date(now.setDate(diff));
-      startDate.setHours(0, 0, 0, 0);
-    } else {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      startDate.setHours(0, 0, 0, 0);
-    }
-
     const q = query(
       collection(db, 'transactions'),
-      where('type', '==', 'win'),
-      where('createdAt', '>=', startDate)
+      where('type', '==', 'win')
     );
 
     const unsub = onSnapshot(q, (snap) => {
@@ -59,18 +45,38 @@ export default function Leaderboard() {
     });
 
     return () => unsub();
-  }, [activeTab]);
+  }, []);
 
   // Merge and calculate leaderboard
   const displayPlayers = React.useMemo(() => {
-    const userIds = new Set([
-      ...Object.keys(allUsers),
-      ...periodTransactions.map(t => t.userId)
+    const now = new Date();
+    let startDate: Date;
+
+    if (activeTab === 'weekly') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      startDate = new Date(now.getFullYear(), now.getMonth(), diff);
+      startDate.setHours(0, 0, 0, 0);
+    } else {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+    }
+    const startMs = startDate.getTime();
+
+    const userIds = new Set<string>([
+      ...Object.keys(allUsers)
     ]);
 
     const earningsMap: Record<string, number> = {};
     periodTransactions.forEach(t => {
-      if (t.userId) {
+      if (!t.userId) return;
+      userIds.add(t.userId);
+      const createdMs = t.createdAt?.toMillis
+        ? t.createdAt.toMillis()
+        : t.createdAt?.seconds
+        ? t.createdAt.seconds * 1000
+        : 0;
+      if (createdMs === 0 || createdMs >= startMs) {
         earningsMap[t.userId] = (earningsMap[t.userId] || 0) + (Number(t.amount) || 0);
       }
     });
@@ -88,7 +94,6 @@ export default function Leaderboard() {
     });
 
     // Sort based on period winnings first, then total if same period earnings
-    // This supports the Weekly/Monthly filters explicitly
     return lbData
       .sort((a, b) => {
         if (b.periodWinnings !== a.periodWinnings) {
@@ -97,7 +102,7 @@ export default function Leaderboard() {
         return (b.totalWinnings || 0) - (a.totalWinnings || 0);
       })
       .slice(0, 100);
-  }, [allUsers, periodTransactions]);
+  }, [allUsers, periodTransactions, activeTab]);
 
   const topThree = displayPlayers.slice(0, 3);
   const remainingPlayers = displayPlayers.slice(3);
@@ -109,9 +114,9 @@ export default function Leaderboard() {
     <div className="h-screen flex flex-col bg-[#050505] text-white max-w-lg mx-auto overflow-hidden selection:bg-purple-500/30">
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-full h-[500px] bg-purple-600/10 blur-[120px] rounded-full opacity-50" />
-        <div className="absolute top-[20%] left-[-20%] w-[300px] h-[300px] bg-blue-600/5 blur-[100px] rounded-full" />
-        <div className="absolute bottom-[10%] right-[-20%] w-[300px] h-[300px] bg-purple-600/5 blur-[100px] rounded-full" />
+        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-full h-[400px] bg-purple-600/10 blur-3xl rounded-full opacity-50" />
+        <div className="absolute top-[20%] left-[-20%] w-[260px] h-[260px] bg-blue-600/5 blur-3xl rounded-full" />
+        <div className="absolute bottom-[10%] right-[-20%] w-[260px] h-[260px] bg-purple-600/5 blur-3xl rounded-full" />
       </div>
 
       {/* Header Container */}

@@ -13,12 +13,20 @@ import {
   ShieldAlert,
   LogOut,
   ChevronRight,
+  Trophy,
   X
 } from 'lucide-react';
 import { Page, User } from '../types';
 import SupportModal from '../components/SupportModal';
 import RulesModal from '../components/RulesModal';
 import MyOrdersModal from '../components/MyOrdersModal';
+
+import {
+  PUSH_UPDATED_EVENT,
+  isPushNotificationsEnabled,
+  requestMobileNotificationPermission,
+  setPushNotificationsPreference
+} from '../utils/mobileNotificationHelper';
 
 interface ProfilePageProps {
   user: User;
@@ -31,16 +39,40 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(() => {
-    return localStorage.getItem('sketelarena_push_notifications') !== 'false';
-  });
+  const [pushEnabled, setPushEnabled] = useState(() => isPushNotificationsEnabled());
+  const [isUpdatingPush, setIsUpdatingPush] = useState(false);
+  const [pushHint, setPushHint] = useState<string>('');
 
-  const handleTogglePush = () => {
-    setPushEnabled((prev) => {
-      const next = !prev;
-      localStorage.setItem('sketelarena_push_notifications', String(next));
-      return next;
-    });
+  useEffect(() => {
+    const syncPush = () => setPushEnabled(isPushNotificationsEnabled());
+    window.addEventListener(PUSH_UPDATED_EVENT, syncPush);
+    window.addEventListener('storage', syncPush);
+    return () => {
+      window.removeEventListener(PUSH_UPDATED_EVENT, syncPush);
+      window.removeEventListener('storage', syncPush);
+    };
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (isUpdatingPush) return;
+    setIsUpdatingPush(true);
+    try {
+      if (!pushEnabled) {
+        setPushEnabled(true);
+        const perm = await requestMobileNotificationPermission(user?.id);
+        if (perm === 'granted') {
+          setPushHint('Mobile & in-app alerts enabled');
+        } else {
+          setPushHint('In-app alerts ON • Allow notifications in browser settings for phone bar');
+        }
+      } else {
+        setPushEnabled(false);
+        setPushHint('Notifications paused');
+        await setPushNotificationsPreference(false, user?.id);
+      }
+    } finally {
+      setIsUpdatingPush(false);
+    }
   };
 
   const isAdminUser =
@@ -54,7 +86,6 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
 
   const displayName = user?.username || 'mps07';
   const matchesPlayed = user?.stats?.matchesPlayed || 0;
-  const totalKills = user?.stats?.totalKills || 0;
   const amountWon = user?.stats?.totalWinnings || 0;
 
   return (
@@ -131,7 +162,7 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
           transition={{ duration: 0.3, delay: 0.1 }}
           className="bg-[#162238] rounded-2xl border border-[#233a64] p-4 sm:p-5 shadow-lg shadow-black/10 mb-5"
         >
-          <div className="grid grid-cols-3 divide-x divide-slate-700/70">
+          <div className="grid grid-cols-2 divide-x divide-slate-700/70">
             {/* Column 1: Matches Played */}
             <div className="text-center px-1">
               <p className="text-lg sm:text-xl font-black text-white tracking-tight leading-none mb-1.5">
@@ -142,17 +173,7 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
               </p>
             </div>
 
-            {/* Column 2: Total Killed */}
-            <div className="text-center px-1">
-              <p className="text-lg sm:text-xl font-black text-white tracking-tight leading-none mb-1.5">
-                {totalKills}
-              </p>
-              <p className="text-[11px] sm:text-xs font-semibold text-slate-300 leading-tight">
-                Total<br />Killed
-              </p>
-            </div>
-
-            {/* Column 3: Amount Won */}
+            {/* Column 2: Amount Won */}
             <div className="text-center px-1">
               <div className="flex items-center justify-center gap-1 leading-none mb-1.5">
                 <span className="text-amber-400 text-xs sm:text-sm">🪙</span>
@@ -170,28 +191,54 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
         {/* 4. White Rounded Menu Cards List */}
         <div className="space-y-2.5">
           {/* Card 1: Push Notification */}
-          <div className="bg-white rounded-xl sm:rounded-2xl px-4 py-3.5 flex items-center justify-between border border-slate-200/90 shadow-xs">
-            <div className="flex items-center gap-3.5">
-              <div className="text-slate-900">
-                <Bell size={20} className="fill-slate-900 stroke-slate-900" />
+          <div className="bg-white rounded-xl sm:rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 border border-slate-200/90 shadow-xs">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                  pushEnabled
+                    ? 'bg-cyan-50 text-cyan-600 border border-cyan-200'
+                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                }`}
+              >
+                <Bell
+                  size={17}
+                  className={pushEnabled ? 'fill-cyan-500 stroke-cyan-600' : 'stroke-slate-500'}
+                />
               </div>
-              <span className="text-sm font-bold text-[#0f172a] tracking-tight">
-                Push Notification
-              </span>
+              <div className="min-w-0">
+                <span className="text-sm font-bold text-[#0f172a] tracking-tight block leading-tight">
+                  Push Notification
+                </span>
+                <span
+                  className={`text-[10px] font-semibold block truncate mt-0.5 ${
+                    pushEnabled ? 'text-emerald-600' : 'text-slate-400'
+                  }`}
+                >
+                  {pushHint ||
+                    (pushEnabled
+                      ? typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+                        ? 'Active • Mobile & In-App Alerts'
+                        : 'Active • In-App Match Alerts'
+                      : 'Tap to enable match alerts')}
+                </span>
+              </div>
             </div>
             {/* Toggle Switch */}
             <button
               type="button"
               role="switch"
               aria-checked={pushEnabled}
+              disabled={isUpdatingPush}
               onClick={handleTogglePush}
-              className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 cursor-pointer ${
-                pushEnabled ? 'bg-[#1e293b]' : 'bg-slate-300'
+              className={`w-12 h-6.5 flex items-center rounded-full p-1 transition-all duration-300 cursor-pointer shrink-0 ${
+                pushEnabled
+                  ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 shadow-sm shadow-emerald-500/30'
+                  : 'bg-slate-300'
               }`}
             >
               <div
-                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                  pushEnabled ? 'translate-x-5' : 'translate-x-0'
+                className={`bg-white w-4.5 h-4.5 rounded-full shadow-md transform transition-transform duration-300 ${
+                  pushEnabled ? 'translate-x-5.5' : 'translate-x-0'
                 }`}
               />
             </button>
@@ -277,7 +324,23 @@ export default function ProfilePage({ user, onPageChange, onLogout }: ProfilePag
             <ChevronRight size={18} className="text-slate-700 group-hover:translate-x-0.5 transition-transform" />
           </button>
 
-          {/* Card 7: My Rewards */}
+          {/* Card 7: Leaderboard */}
+          <button
+            onClick={() => onPageChange(Page.LEADERBOARD)}
+            className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 rounded-xl sm:rounded-2xl px-4 py-3.5 flex items-center justify-between border border-slate-200/90 shadow-xs group transition-all"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="text-amber-500">
+                <Trophy size={20} className="stroke-[2.2]" />
+              </div>
+              <span className="text-sm font-bold text-[#0f172a] tracking-tight">
+                Leaderboard
+              </span>
+            </div>
+            <ChevronRight size={18} className="text-slate-700 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
+          {/* Card 8: My Rewards */}
           <button
             onClick={() => onPageChange(Page.REFERRAL)}
             className="w-full bg-white hover:bg-slate-50 active:bg-slate-100 rounded-xl sm:rounded-2xl px-4 py-3.5 flex items-center justify-between border border-slate-200/90 shadow-xs group transition-all"

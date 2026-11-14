@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Trophy, Target, Sword, TrendingUp, History, Gamepad2, Loader2, IndianRupee } from 'lucide-react';
+import { ArrowLeft, Trophy, History, Gamepad2, Loader2, IndianRupee } from 'lucide-react';
 import { Page, User, Tournament } from '../types';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, orderBy, limit } from 'firebase/firestore';
@@ -53,15 +53,10 @@ export default function GameStats({ user, onPageChange }: GameStatsProps) {
     fetchHistory();
   }, [user.id]);
 
-  const stats = user.stats || { matchesPlayed: 0, totalWins: 0, totalKills: 0, totalWinnings: 0 };
+  const stats = user.stats || { matchesPlayed: 0, totalWins: 0, totalWinnings: 0 };
   const matchesPlayed = stats.matchesPlayed || 0;
   const totalWins = stats.totalWins || 0;
-  const totalKills = stats.totalKills || 0;
   const totalWinnings = stats.totalWinnings || 0;
-
-  const winRate = matchesPlayed > 0 
-    ? ((totalWins / matchesPlayed) * 100).toFixed(1) 
-    : '0.0';
 
   return (
     <div className="pb-24 max-w-lg mx-auto bg-background min-h-screen">
@@ -86,8 +81,6 @@ export default function GameStats({ user, onPageChange }: GameStatsProps) {
         <div className="grid grid-cols-2 gap-3 mb-8">
            <StatCard icon={Gamepad2} label="Matches" value={matchesPlayed.toString()} color="text-blue-500" />
            <StatCard icon={Trophy} label="Wins" value={totalWins.toString()} color="text-amber-500" />
-           <StatCard icon={Sword} label="Kills" value={totalKills.toString()} color="rose-500" />
-           <StatCard icon={TrendingUp} label="Win Rate" value={`${winRate}%`} color="text-emerald-500" />
         </div>
 
         <div className="p-6 bg-neutral-900/60 border border-neutral-800 rounded-[2rem] mb-8">

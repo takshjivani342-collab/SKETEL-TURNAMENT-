@@ -1,6 +1,75 @@
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 
+export const PUSH_PREF_KEY = 'sketelarena_push_notifications';
+export const BANNER_DISMISSED_KEY = 'sketelarena_notif_banner_dismissed';
+export const PUSH_UPDATED_EVENT = 'sketelarena:push-updated';
+
+const LOGO_ICON = '/assets/aistudio/file_00000000d12482108e623996537462ea_f1b955c6.png';
+
+export function emitPushStateUpdated() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PUSH_UPDATED_EVENT));
+  }
+}
+
+export function isPushNotificationsEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  const saved = localStorage.getItem(PUSH_PREF_KEY);
+  if (saved === 'false') return false;
+  if (saved === 'true') return true;
+  if ('Notification' in window && Notification.permission === 'granted') {
+    return true;
+  }
+  return false;
+}
+
+export function isNotificationBannerDismissed(): boolean {
+  if (typeof window === 'undefined') return true;
+  return (
+    localStorage.getItem(BANNER_DISMISSED_KEY) === 'true' ||
+    sessionStorage.getItem('kg_notif_banner_dismissed') === 'true'
+  );
+}
+
+export function dismissNotificationBanner() {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(BANNER_DISMISSED_KEY, 'true');
+  sessionStorage.setItem('kg_notif_banner_dismissed', 'true');
+  emitPushStateUpdated();
+}
+
+export async function syncPushPreferenceToFirestore(
+  userId: string | undefined,
+  enabled: boolean,
+  browserPermission?: NotificationPermission
+) {
+  if (!userId) return;
+  const effectivePermission =
+    browserPermission ||
+    (typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'denied');
+
+  try {
+    await updateDoc(doc(db, 'users', userId), {
+      fcmEnabled: enabled && effectivePermission === 'granted',
+      notificationsEnabled: enabled
+    });
+  } catch {
+    // Non-fatal if offline or permissions restricted
+  }
+}
+
+export async function setPushNotificationsPreference(enabled: boolean, userId?: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(PUSH_PREF_KEY, String(enabled));
+  if (enabled) {
+    localStorage.setItem(BANNER_DISMISSED_KEY, 'true');
+    sessionStorage.setItem('kg_notif_banner_dismissed', 'true');
+  }
+  emitPushStateUpdated();
+  await syncPushPreferenceToFirestore(userId, enabled);
+}
+
 // Register Service Worker for Mobile Notifications
 export async function registerNotificationServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
@@ -25,37 +94,49 @@ export async function registerNotificationServiceWorker(): Promise<ServiceWorker
 
 // Request Notification Permission from User & Sync with Firestore
 export async function requestMobileNotificationPermission(userId?: string): Promise<NotificationPermission> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    alert('Notifications are not supported on this browser/device.');
+  if (typeof window === 'undefined') return 'denied';
+
+  // Always record user intent to enable in-app push alerts and dismiss the prompt banner
+  localStorage.setItem(PUSH_PREF_KEY, 'true');
+  localStorage.setItem(BANNER_DISMISSED_KEY, 'true');
+  sessionStorage.setItem('kg_notif_banner_dismissed', 'true');
+
+  if (!('Notification' in window)) {
+    emitPushStateUpdated();
+    await syncPushPreferenceToFirestore(userId, true, 'denied');
     return 'denied';
   }
 
   try {
-    const permission = await Notification.requestPermission();
-    
-    if (permission === 'granted') {
-      // Ensure SW is registered and ready
-      await registerNotificationServiceWorker();
+    let permission: NotificationPermission = Notification.permission;
 
-      // Update Firestore user document
-      if (userId) {
-        await updateDoc(doc(db, 'users', userId), {
-          fcmEnabled: true,
-          notificationsEnabled: true
-        }).catch(() => {});
+    if (permission === 'default') {
+      const req = Notification.requestPermission();
+      if (req && typeof req.then === 'function') {
+        permission = await req;
+      } else {
+        permission = await new Promise<NotificationPermission>((resolve) => {
+          Notification.requestPermission((res) => resolve(res));
+        });
       }
+    }
 
-      // Trigger a quick welcome notification into the mobile status bar
+    if (permission === 'granted') {
+      await registerNotificationServiceWorker();
       triggerMobileStatusBarNotification(
-        '🔔 Mobile Notifications Enabled!',
-        'You will now receive instant Room ID, Password, and Match alerts directly in your phone status bar.',
-        { tag: 'welcome-notification' }
+        '🔔 Notifications Enabled!',
+        'You will now receive instant Room ID, Password, and Match alerts in Sketel Arena.',
+        { tag: 'welcome-notification', force: true }
       );
     }
-    
+
+    emitPushStateUpdated();
+    await syncPushPreferenceToFirestore(userId, true, permission);
     return permission;
   } catch (err) {
-    console.error('Error requesting notification permission:', err);
+    console.warn('Error requesting notification permission:', err);
+    emitPushStateUpdated();
+    await syncPushPreferenceToFirestore(userId, true, 'denied');
     return 'denied';
   }
 }
@@ -67,6 +148,7 @@ export interface MobileNotificationOptions {
   icon?: string;
   badge?: string;
   data?: any;
+  force?: boolean;
 }
 
 // Trigger Native Mobile Status Bar & Lock Screen Notification
@@ -76,6 +158,10 @@ export async function triggerMobileStatusBarNotification(
   options: MobileNotificationOptions = {}
 ) {
   if (typeof window === 'undefined' || !('Notification' in window)) {
+    return;
+  }
+
+  if (!options.force && localStorage.getItem(PUSH_PREF_KEY) === 'false') {
     return;
   }
 
@@ -92,12 +178,12 @@ export async function triggerMobileStatusBarNotification(
 
   try {
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await navigator.serviceWorker.getRegistration('/');
       if (reg && reg.showNotification) {
         await reg.showNotification(title, {
           body,
-          icon: options.icon || '/assets/aistudio/file_00000000d12482108e623996537462ea_f1b955c6.png',
-          badge: options.badge || '/assets/aistudio/file_00000000d12482108e623996537462ea_f1b955c6.png',
+          icon: options.icon || LOGO_ICON,
+          badge: options.badge || LOGO_ICON,
           vibrate: [250, 100, 250, 100, 250],
           tag: options.tag || `sketel-arena-${Date.now()}`,
           renotify: true,
@@ -107,10 +193,10 @@ export async function triggerMobileStatusBarNotification(
       }
     }
 
-    // Standard fallback if SW ready didn't resolve
+    // Standard fallback when no ServiceWorker registration is active
     new Notification(title, {
       body,
-      icon: options.icon || '/assets/aistudio/file_00000000d12482108e623996537462ea_f1b955c6.png',
+      icon: options.icon || LOGO_ICON,
       tag: options.tag || `sketel-arena-${Date.now()}`
     });
   } catch (err) {

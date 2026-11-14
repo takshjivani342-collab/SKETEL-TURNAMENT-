@@ -19,7 +19,7 @@ export const db = initializeFirestore(
 );
 
 export const storage = getStorage(app);
-export const auth = getAuth();
+export const auth = getAuth(app);
 
 async function testConnection() {
   try {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
-import { Zap, Gamepad2, User as UserIcon } from 'lucide-react';
+import { Zap, Gamepad2, Trophy, User as UserIcon } from 'lucide-react';
 import { Page, User } from '../types';
 
 interface BottomNavProps {
@@ -34,6 +34,14 @@ export default function BottomNav({
       path: '/home',
       page: Page.HOME,
       color: 'text-white'
+    },
+    {
+      id: 'leaderboard',
+      label: 'Leaderboard',
+      icon: Trophy,
+      path: '/leaderboard',
+      page: Page.LEADERBOARD,
+      color: 'text-amber-400'
     },
     {
       id: 'account',

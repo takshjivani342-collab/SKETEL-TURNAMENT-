@@ -28,6 +28,8 @@
         "referredBy": { "type": "string" },
         "referralClaimed": { "type": "boolean" },
         "deviceId": { "type": "string" },
+        "fcmEnabled": { "type": "boolean" },
+        "notificationsEnabled": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["username", "email", "wallet"]
